@@ -86,21 +86,5 @@ func main() {
 				}
 			}
 		},
-
-		// 关闭 cache
-		func() {
-			if s.Cache != nil {
-				if err := s.Cache.Close(); err != nil {
-					accessLogger.Error("cache close err", zap.Error(err))
-				}
-			}
-		},
-
-		// 关闭 cron Server
-		func() {
-			if s.CronServer != nil {
-				s.CronServer.Stop()
-			}
-		},
 	)
 }

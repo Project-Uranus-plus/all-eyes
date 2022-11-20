@@ -21,7 +21,7 @@ type Server struct {
 	Db  mysql.Repo
 }
 
-func NewHTTPServer(logger *zap.Logger, cronLogger *zap.Logger) (*Server, error) {
+func NewHTTPServer(logger *zap.Logger) (*Server, error) {
 	if logger == nil {
 		return nil, errors.New("logger required")
 	}

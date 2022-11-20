@@ -22,13 +22,13 @@
 
   [mysql.read]
     addr = "127.0.0.1:3306"
-    name = "go_gin_api"
+    name = "all-eyes"
     pass = "123456789"
     user = "root"
 
   [mysql.write]
     addr = "127.0.0.1:3306"
-    name = "go_gin_api"
+    name = "all-eyes"
     pass = "123456789"
     user = "root"
 
@@ -39,3 +39,5 @@
   minidleconns = 5
   pass = ""
   poolsize = 10
+
+

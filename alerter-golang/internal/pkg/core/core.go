@@ -2,9 +2,7 @@ package core
 
 import (
 	"fmt"
-	"github.com/fatih/color"
-	"golang.org/x/net/trace"
-	"html/template"
+	swaggerFiles "github.com/swaggo/files"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -16,16 +14,13 @@ import (
 	"github.com/Project-Uranus-plus/all-eyes/pkg/errors"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	cors "github.com/rs/cors/wrapper/gin"
-
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
-const _UI = `
-`
 
 type Option func(*option)
 
@@ -51,14 +46,6 @@ func WithDisableSwagger() Option {
 		opt.disableSwagger = true
 	}
 }
-
-// WithDisablePrometheus 禁用prometheus
-func WithDisablePrometheus() Option {
-	return func(opt *option) {
-		opt.disablePrometheus = true
-	}
-}
-
 
 // WithEnableOpenBrowser 启动后在浏览器中打开 uri
 func WithEnableOpenBrowser(uri string) Option {
@@ -208,32 +195,6 @@ func New(logger *zap.Logger, options ...Option) (Mux, error) {
 		engine: gin.New(),
 	}
 
-	fmt.Println(color.Blue(_UI))
-
-	mux.engine.StaticFS("assets", http.FS(assets.Bootstrap))
-	mux.engine.SetHTMLTemplate(template.Must(template.New("").ParseFS(assets.Templates, "templates/**/*")))
-
-	// withoutTracePaths 这些请求，默认不记录日志
-	withoutTracePaths := map[string]bool{
-		"/metrics": true,
-
-		"/debug/pprof/":             true,
-		"/debug/pprof/cmdline":      true,
-		"/debug/pprof/profile":      true,
-		"/debug/pprof/symbol":       true,
-		"/debug/pprof/trace":        true,
-		"/debug/pprof/allocs":       true,
-		"/debug/pprof/block":        true,
-		"/debug/pprof/goroutine":    true,
-		"/debug/pprof/heap":         true,
-		"/debug/pprof/mutex":        true,
-		"/debug/pprof/threadcreate": true,
-
-		"/favicon.ico": true,
-
-		"/system/health": true,
-	}
-
 	opt := new(option)
 	for _, f := range options {
 		f(opt)
@@ -249,10 +210,6 @@ func New(logger *zap.Logger, options ...Option) (Mux, error) {
 		if !env.Active().IsPro() {
 			mux.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler)) // register swagger
 		}
-	}
-
-	if !opt.disablePrometheus {
-		mux.engine.GET("/metrics", gin.WrapH(promhttp.Handler())) // register prometheus
 	}
 
 	if opt.enableCors {
@@ -290,7 +247,6 @@ func New(logger *zap.Logger, options ...Option) (Mux, error) {
 			return
 		}
 
-		ts := time.Now()
 
 		context := newContext(ctx)
 		defer releaseContext(context)
@@ -299,28 +255,14 @@ func New(logger *zap.Logger, options ...Option) (Mux, error) {
 		context.setLogger(logger)
 		context.ableRecordMetrics()
 
-		if !withoutTracePaths[ctx.Request.URL.Path] {
-			if traceId := context.GetHeader(trace.Header); traceId != "" {
-				context.setTrace(trace.New(traceId))
-			} else {
-				context.setTrace(trace.New(""))
-			}
-		}
-
 		defer func() {
 			var (
 				response        interface{}
 				businessCode    int
 				businessCodeMsg string
 				abortErr        error
-				traceId         string
-				graphResponse   interface{}
 			)
 
-			if ct := context.Trace(); ct != nil {
-				context.SetHeader(trace.Header, ct.ID())
-				traceId = ct.ID()
-			}
 
 			// region 发生 Panic 异常发送告警提醒
 			if err := recover(); err != nil {
@@ -353,25 +295,9 @@ func New(logger *zap.Logger, options ...Option) (Mux, error) {
 					ctx.JSON(err.HTTPCode(), response)
 				}
 			}
-			// endregion
-
-			// region 正确返回
-			response = context.getPayload()
-			if response != nil {
-				ctx.JSON(http.StatusOK, response)
-			}
-			// endregion
 
 
-			// endregion
 
-			// region 记录日志
-			var t *trace.Trace
-			if x := context.Trace(); x != nil {
-				t = x.(*trace.Trace)
-			} else {
-				return
-			}
 
 			decodedURL, _ := url.QueryUnescape(ctx.Request.URL.RequestURI())
 
@@ -382,7 +308,6 @@ func New(logger *zap.Logger, options ...Option) (Mux, error) {
 				zap.Any("path", decodedURL),
 				zap.Any("http_code", ctx.Writer.Status()),
 				zap.Any("business_code", businessCode),
-				zap.Any("trace_info", t),
 				zap.Error(abortErr),
 			)
 			// endregion

@@ -28,25 +28,12 @@ func main() {
 		panic(err)
 	}
 
-	// 初始化 cron logger
-	cronLogger, err := logger.NewJSONLogger(
-		logger.WithDisableConsole(),
-		logger.WithField("domain", fmt.Sprintf("%s[%s]", configs.ProjectName, env.Active().Value())),
-		logger.WithTimeLayout(timeutil.CSTLayout),
-		logger.WithFileP(configs.ProjectCronLogFile),
-	)
-
-	if err != nil {
-		panic(err)
-	}
-
 	defer func() {
 		_ = accessLogger.Sync()
-		_ = cronLogger.Sync()
 	}()
 
 	// 初始化 HTTP 服务
-	s, err := router.NewHTTPServer(accessLogger, cronLogger)
+	s, err := router.NewHTTPServer(accessLogger)
 	if err != nil {
 		panic(err)
 	}
